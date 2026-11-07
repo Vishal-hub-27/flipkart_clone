@@ -6,7 +6,7 @@ import { Suspense } from "react";
 async function getProducts() {
   try {
     const response = await fetch(
-      "http://localhost:3000/api/products",
+      "/api/products",
       { cache: "no-store" }
     );
 
