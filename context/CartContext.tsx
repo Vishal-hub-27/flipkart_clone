@@ -1,4 +1,3 @@
-
 "use client";
 
 import {
@@ -9,6 +8,7 @@ import {
   ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 
 type CartItem = {
   id: string;
@@ -27,6 +27,8 @@ type CartContextType = {
   loading: boolean;
   refreshCart: () => Promise<void>;
   clearCart: () => void;
+  loginPromptOpen: boolean;
+  closeLoginPrompt: () => void;
 };
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -34,11 +36,14 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 export function CartProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loginPromptOpen, setLoginPromptOpen] = useState(false);
   const router = useRouter();
+  const { token: authToken, loading: authLoading, logout } = useAuth();
 
   const clearCart = () => {
-  setCart([]);
-};
+    setCart([]);
+  };
+
   // Get token from localStorage
   function getToken() {
     return localStorage.getItem("token");
@@ -67,8 +72,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
       const data = await response.json();
 
       if (response.status === 401) {
+        // Token expired / invalid -> log the user out completely
         setCart([]);
-        localStorage.removeItem("token");
+        logout();
         return;
       }
 
@@ -96,18 +102,26 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // Load cart when application starts
+  // Load cart on start, and whenever the user logs in or out
   useEffect(() => {
+    if (authLoading) return;
+
+    if (!authToken) {
+      setCart([]);
+      return;
+    }
+
     refreshCart();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authToken, authLoading]);
 
   // Add product to cart
   async function addToCart(product: any) {
     const token = getToken();
 
+    // Not logged in -> show the "please login" popup
     if (!token) {
-      alert("Please login before adding products to cart.");
-      router.push("/login");
+      setLoginPromptOpen(true);
       return;
     }
 
@@ -128,7 +142,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       if (!response.ok) {
         if (response.status === 401) {
           setCart([]);
-          localStorage.removeItem("token");
+          logout();
           router.push("/login");
         }
 
@@ -221,6 +235,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
         loading,
         refreshCart,
         clearCart,
+        loginPromptOpen,
+        closeLoginPrompt: () => setLoginPromptOpen(false),
       }}
     >
       {children}

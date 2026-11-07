@@ -1,16 +1,15 @@
-
 "use client";
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useState,
   ReactNode,
 } from "react";
 
-// User details type
-interface User {
+export interface User {
   _id?: string;
   id?: string;
   name: string;
@@ -18,79 +17,81 @@ interface User {
   role?: string;
 }
 
-// Context type
 interface AuthContextType {
   user: User | null;
+  token: string | null;
   isLoggedIn: boolean;
   loading: boolean;
   login: (token: string, userData: User) => void;
   logout: () => void;
 }
 
-// Create context
-const AuthContext = createContext<AuthContextType | undefined>(
-  undefined
-);
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Auth Provider
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  // Check login status when application loads
-  useEffect(() => {
+// Read saved session from localStorage (safe against bad JSON)
+function readSession(): { token: string | null; user: User | null } {
+  try {
     const token = localStorage.getItem("token");
     const savedUser = localStorage.getItem("user");
 
     if (token && savedUser) {
-      try {
-        setUser(JSON.parse(savedUser));
-        setIsLoggedIn(true);
-      } catch {
-        localStorage.removeItem("token");
-        localStorage.removeItem("user");
-      }
+      return { token, user: JSON.parse(savedUser) as User };
     }
+  } catch {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+  }
 
+  return { token: null, user: null };
+}
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Restore session when the app loads
+  useEffect(() => {
+    const session = readSession();
+    setUser(session.user);
+    setToken(session.token);
     setLoading(false);
+
+    // Keep all browser tabs in sync (login/logout in another tab)
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "token" || e.key === "user" || e.key === null) {
+        const s = readSession();
+        setUser(s.user);
+        setToken(s.token);
+      }
+    };
+
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
   }, []);
 
-  //Login function
-  const login = (token: string, userData: User) => {
-    localStorage.setItem("token", token);
+  const login = useCallback((newToken: string, userData: User) => {
+    localStorage.setItem("token", newToken);
     localStorage.setItem("user", JSON.stringify(userData));
 
+    setToken(newToken);
     setUser(userData);
-    setIsLoggedIn(true);
-  };
-// const login = (token: string, userData: User) => {
-//   console.log("Login token:", token);
-//   console.log("Login user:", userData);
+  }, []);
 
-//   localStorage.setItem("token", token);
-//   localStorage.setItem("user", JSON.stringify(userData));
-
-//   setUser(userData);
-//   setIsLoggedIn(true);
-
-//   console.log("Authentication state updated");
-// };
-
-  // Logout function
-  const logout = () => {
+  const logout = useCallback(() => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
 
+    setToken(null);
     setUser(null);
-    setIsLoggedIn(false);
-  };
+  }, []);
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        isLoggedIn,
+        token,
+        isLoggedIn: !!token && !!user,
         loading,
         login,
         logout,
@@ -101,7 +102,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
-// Custom hook
 export function useAuth() {
   const context = useContext(AuthContext);
 

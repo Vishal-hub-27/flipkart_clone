@@ -3,6 +3,7 @@ import "./globals.css";
 
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import LoginPromptModal from "@/components/LoginPromptModal";
 import { AuthProvider } from "@/context/AuthContext";
 import { CartProvider } from "@/context/CartContext";
 
@@ -24,6 +25,7 @@ export default function RootLayout({
           <Navbar />
           <main>{children}</main>
           <Footer />
+          <LoginPromptModal />
         </CartProvider>
       </AuthProvider>
       </body>

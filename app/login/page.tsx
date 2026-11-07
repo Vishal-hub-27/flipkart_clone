@@ -1,12 +1,13 @@
-
 "use client";
 
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { login } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -21,9 +22,7 @@ export default function LoginPage() {
     try {
       const response = await fetch("/api/auth/login", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
 
@@ -34,15 +33,11 @@ export default function LoginPage() {
         return;
       }
 
-      // Save JWT token returned by the API
-      if (data.token) {
-        localStorage.setItem("token", data.token);
-      }
+      // Save token + user in AuthContext (updates the Navbar instantly)
+      login(data.token, data.user);
 
-      alert("Login successful!");
-      router.push("/");
-      router.refresh();
-    } catch (error) {
+      router.replace("/");
+    } catch {
       setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
@@ -50,85 +45,64 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4">
-      <div className="w-full max-w-4xl bg-white shadow-lg rounded-lg overflow-hidden grid md:grid-cols-2">
-
-        {/* Left Section */}
-        <div className="bg-blue-600 text-white p-10 flex flex-col justify-center">
-          <h1 className="text-3xl font-bold mb-4">
-            Welcome Back!
-          </h1>
-
-          <p className="text-blue-100 text-lg">
-            Login to explore amazing products and enjoy shopping
-            with Flipkart Clone.
+    <div className="auth-page">
+      <div className="auth-card">
+        {/* Left banner */}
+        <div className="auth-side">
+          <h1>Welcome Back!</h1>
+          <p>
+            Login to view your cart, track your orders and enjoy a faster
+            checkout.
           </p>
-
-          <div className="mt-10 text-6xl">🛒</div>
+          <ul>
+            <li>✔ Easy order tracking</li>
+            <li>✔ Saved cart across devices</li>
+            <li>✔ Exclusive offers</li>
+          </ul>
+          <div className="auth-side-emoji">🛒</div>
         </div>
 
-        {/* Login Form */}
-        <div className="p-8 md:p-12">
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">
-            Login
-          </h2>
+        {/* Form */}
+        <div className="auth-form-wrap">
+          <h2>Login</h2>
+          <p className="auth-subtitle">Enter your account details</p>
 
-          <p className="text-gray-500 mb-8">
-            Enter your account details
-          </p>
-
-          <form onSubmit={handleLogin} className="space-y-5">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Email Address
-              </label>
-
+          <form onSubmit={handleLogin} className="auth-form">
+            <div className="auth-field">
+              <label htmlFor="email">Email Address</label>
               <input
+                id="email"
                 type="email"
                 placeholder="Enter your email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                autoComplete="email"
                 required
-                className="w-full border border-gray-300 rounded-md px-4 py-3 text-black outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Password
-              </label>
-
+            <div className="auth-field">
+              <label htmlFor="password">Password</label>
               <input
+                id="password"
                 type="password"
                 placeholder="Enter your password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
                 required
-                className="w-full border border-gray-300 rounded-md px-4 py-3 text-black outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
-            {error && (
-              <p className="text-red-500 text-sm">{error}</p>
-            )}
+            {error && <p className="auth-error">{error}</p>}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 rounded-md disabled:opacity-60"
-            >
+            <button type="submit" disabled={loading} className="auth-submit">
               {loading ? "Logging in..." : "Login"}
             </button>
           </form>
 
-          <p className="text-center text-gray-600 mt-6">
-            Don't have an account?{" "}
-            <Link
-              href="/register"
-              className="text-blue-600 font-semibold hover:underline"
-            >
-              Create Account
-            </Link>
+          <p className="auth-switch">
+            New to Flipkart Lite? <Link href="/register">Create an account</Link>
           </p>
         </div>
       </div>

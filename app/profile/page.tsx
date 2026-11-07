@@ -1,14 +1,15 @@
-
 "use client";
 
 import { useEffect } from "react";
-import { useAuth } from "@/context/AuthContext";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Mail, User, ShieldCheck, Package, ShoppingCart, LogOut } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { useCart } from "@/context/CartContext";
 
 export default function ProfilePage() {
   const { user, isLoggedIn, loading, logout } = useAuth();
-
+  const { cart, clearCart } = useCart();
   const router = useRouter();
 
   // Protect profile page
@@ -18,81 +19,92 @@ export default function ProfilePage() {
     }
   }, [loading, isLoggedIn, router]);
 
-  const handleLogout = () => {
+  function handleLogout() {
     logout();
+    clearCart();
     router.replace("/");
-  };
+  }
 
-  // Wait until authentication check completes
   if (loading || !isLoggedIn) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        <p>Loading profile...</p>
+      <div className="profile-page">
+        <p className="profile-loading">Loading profile...</p>
       </div>
     );
   }
 
+  const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
-
-      <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-md p-8">
-
-        <h1 className="text-2xl font-bold mb-6">
-          My Profile
-        </h1>
-
-        <div className="space-y-5">
-
-          <div>
-            <p className="text-gray-500 text-sm">
-              Full Name
-            </p>
-
-            <p className="font-semibold text-lg">
-              {user?.name}
-            </p>
+    <div className="profile-page">
+      <div className="profile-card">
+        {/* Header */}
+        <div className="profile-header">
+          <div className="profile-big-avatar">
+            {user?.name?.charAt(0).toUpperCase() || "U"}
           </div>
-
           <div>
-            <p className="text-gray-500 text-sm">
-              Email Address
-            </p>
-
-            <p className="font-semibold text-lg">
-              {user?.email}
-            </p>
+            <h1>{user?.name}</h1>
+            <p>{user?.email}</p>
           </div>
-
-          <div>
-            <p className="text-gray-500 text-sm">
-              Account Status
-            </p>
-
-            <p className="text-green-600 font-semibold">
-              Active
-            </p>
-          </div>
-
         </div>
 
-        <div className="flex gap-4 mt-8">
+        {/* Details */}
+        <div className="profile-section">
+          <h2>Account Information</h2>
 
-          <Link
-            href="/"
-            className="bg-blue-600 text-white px-5 py-2 rounded"
-          >
-            Back to Home
+          <div className="profile-row">
+            <User size={20} />
+            <div>
+              <span>Full Name</span>
+              <strong>{user?.name}</strong>
+            </div>
+          </div>
+
+          <div className="profile-row">
+            <Mail size={20} />
+            <div>
+              <span>Email Address</span>
+              <strong>{user?.email}</strong>
+            </div>
+          </div>
+
+          <div className="profile-row">
+            <ShieldCheck size={20} />
+            <div>
+              <span>Account Status</span>
+              <strong className="profile-active">Active</strong>
+            </div>
+          </div>
+        </div>
+
+        {/* Quick links */}
+        <div className="profile-links">
+          <Link href="/orders" className="profile-link-card">
+            <Package size={22} />
+            <span>My Orders</span>
+          </Link>
+
+          <Link href="/cart" className="profile-link-card">
+            <ShoppingCart size={22} />
+            <span>My Cart ({cartCount})</span>
+          </Link>
+        </div>
+
+        {/* Actions */}
+        <div className="profile-actions">
+          <Link href="/" className="profile-btn profile-btn-primary">
+            Continue Shopping
           </Link>
 
           <button
+            type="button"
             onClick={handleLogout}
-            className="bg-red-500 text-white px-5 py-2 rounded"
+            className="profile-btn profile-btn-danger"
           >
-            Logout
+            <LogOut size={17} /> Logout
           </button>
-
         </div>
-
       </div>
     </div>
   );
