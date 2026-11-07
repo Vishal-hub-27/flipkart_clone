@@ -27,6 +27,7 @@ type CartContextType = {
   loading: boolean;
   refreshCart: () => Promise<void>;
   clearCart: () => void;
+  cartLoaded: boolean;
   loginPromptOpen: boolean;
   closeLoginPrompt: () => void;
 };
@@ -36,6 +37,7 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 export function CartProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [cartLoaded, setCartLoaded] = useState(false);
   const [loginPromptOpen, setLoginPromptOpen] = useState(false);
   const router = useRouter();
   const { token: authToken, loading: authLoading, logout } = useAuth();
@@ -99,6 +101,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       console.error("Fetch cart error:", error);
     } finally {
       setLoading(false);
+      setCartLoaded(true);
     }
   }
 
@@ -108,6 +111,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
     if (!authToken) {
       setCart([]);
+      setCartLoaded(true);
       return;
     }
 
@@ -235,6 +239,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         loading,
         refreshCart,
         clearCart,
+        cartLoaded,
         loginPromptOpen,
         closeLoginPrompt: () => setLoginPromptOpen(false),
       }}

@@ -1,117 +1,155 @@
-
 import { NextRequest, NextResponse } from "next/server";
+import mongoose from "mongoose";
 
 import connectDB from "@/app/lib/db";
 import Order from "@/app/models/Order";
 import Cart from "@/app/models/Cart";
 import { getUserId } from "@/app/lib/auth";
 
-// PLACE ORDER
+// Clean a text value coming from the client
+function clean(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+// PLACE ORDER  (cart items + shipping address -> Order collection)
 export async function POST(req: NextRequest) {
   try {
-    await connectDB();
-
     const userId = getUserId(req);
 
-    if (!userId) {
+    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
       return NextResponse.json(
-        { message: "Please login first" },
+        { message: "Please login first." },
         { status: 401 }
       );
     }
 
-    // Get user's cart
-    const cart = await Cart.findOne({ userId })
-      .populate("items.product");
+    await connectDB();
 
-    if (!cart || cart.items.length === 0) {
+    // 1. Validate the shipping address
+    const body = await req.json();
+    const address = body?.shippingAddress || {};
+
+    const shippingAddress = {
+      fullName: clean(address.fullName),
+      phone: clean(address.phone),
+      pincode: clean(address.pincode),
+      addressLine: clean(address.addressLine),
+      city: clean(address.city),
+      state: clean(address.state),
+      addressType: address.addressType === "Work" ? "Work" : "Home",
+    };
+
+    if (
+      !shippingAddress.fullName ||
+      !shippingAddress.addressLine ||
+      !shippingAddress.city ||
+      !shippingAddress.state
+    ) {
       return NextResponse.json(
-        { message: "Your cart is empty" },
+        { message: "Please fill in all address fields." },
         { status: 400 }
       );
     }
 
-    // Prepare order items
+    if (!/^[6-9]\d{9}$/.test(shippingAddress.phone)) {
+      return NextResponse.json(
+        { message: "Enter a valid 10-digit mobile number." },
+        { status: 400 }
+      );
+    }
+
+    if (!/^\d{6}$/.test(shippingAddress.pincode)) {
+      return NextResponse.json(
+        { message: "Enter a valid 6-digit pincode." },
+        { status: 400 }
+      );
+    }
+
+    // 2. Load the user's cart (the cart schema field is "productId")
+    const cart = await Cart.findOne({ userId }).populate("items.productId");
+
+    if (!cart || cart.items.length === 0) {
+      return NextResponse.json(
+        { message: "Your cart is empty." },
+        { status: 400 }
+      );
+    }
+
+    // 3. Build order items using prices from the database (not from the browser)
     let totalAmount = 0;
 
-    const orderItems = cart.items.map((item: any) => {
-      const product = item.product;
+    const orderItems = cart.items
+      .filter((item: any) => item.productId)
+      .map((item: any) => {
+        const product = item.productId;
 
-      if (!product) {
-        throw new Error("A cart product no longer exists");
-      }
+        totalAmount += product.price * item.quantity;
 
-      const price = product.price;
-      const quantity = item.quantity;
+        return {
+          product: product._id,
+          name: product.name,
+          image: product.image,
+          price: product.price,
+          quantity: item.quantity,
+        };
+      });
 
-      totalAmount += price * quantity;
+    if (orderItems.length === 0) {
+      return NextResponse.json(
+        { message: "Products in your cart are no longer available." },
+        { status: 400 }
+      );
+    }
 
-      return {
-        product: product._id,
-        name: product.name,
-        price,
-        quantity
-      };
-    });
-
-    // Create order
+    // 4. Save order
     const order = await Order.create({
       userId,
       items: orderItems,
+      shippingAddress,
+      paymentMethod: "Cash on Delivery",
       totalAmount,
-      status: "Placed"
+      status: "Placed",
     });
 
-    // Clear cart
-    await Cart.findOneAndUpdate(
-      { userId },
-      { $set: { items: [] } }
-    );
-
-    return NextResponse.json({
-      message: "Order placed successfully",
-      order
-    }, { status: 201 });
-
-  } catch (error) {
-    console.error(error);
+    // 5. Empty the cart
+    await Cart.findOneAndUpdate({ userId }, { $set: { items: [] } });
 
     return NextResponse.json(
-      { message: "Order placement failed" },
+      { success: true, message: "Order placed successfully.", order },
+      { status: 201 }
+    );
+  } catch (error) {
+    console.error("Place order error:", error);
+
+    return NextResponse.json(
+      { message: "Order placement failed. Please try again." },
       { status: 500 }
     );
   }
 }
 
-// GET USER ORDERS
-// GET USER ORDERS
+// GET LOGGED-IN USER'S ORDERS
 export async function GET(req: NextRequest) {
   try {
-    await connectDB();
-
     const userId = getUserId(req);
 
-    if (!userId) {
+    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
       return NextResponse.json(
-        { message: "Please login first" },
+        { message: "Please login first." },
         { status: 401 }
       );
     }
 
-    const orders = await Order.find({ userId })
-      .populate("items.product")
-      .sort({ createdAt: -1 });
+    await connectDB();
 
-    return NextResponse.json({
-      success: true,
-      orders,
-    });
+    const orders = await Order.find({ userId }).sort({ createdAt: -1 });
 
+    return NextResponse.json({ success: true, orders });
   } catch (error) {
     console.error("Fetch orders error:", error);
 
     return NextResponse.json(
-      { message: "Unable to fetch orders" },
+      { message: "Unable to fetch orders." },
       { status: 500 }
     );
   }

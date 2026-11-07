@@ -1,20 +1,33 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { CheckCircle2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 interface OrderItem {
   name: string;
+  image?: string;
   price: number;
   quantity: number;
+}
+
+interface ShippingAddress {
+  fullName: string;
+  phone: string;
+  pincode: string;
+  addressLine: string;
+  city: string;
+  state: string;
+  addressType?: string;
 }
 
 interface OrderData {
   _id: string;
   items: OrderItem[];
+  shippingAddress?: ShippingAddress;
+  paymentMethod?: string;
   totalAmount: number;
   status: string;
   createdAt: string;
@@ -22,40 +35,37 @@ interface OrderData {
 
 export default function OrdersPage() {
   const router = useRouter();
-
-  const { isLoggedIn, loading: authLoading } = useAuth();
+  const { token, isLoggedIn, loading: authLoading, logout } = useAuth();
 
   const [orders, setOrders] = useState<OrderData[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [error, setError] = useState("");
+  const [justPlaced, setJustPlaced] = useState(false);
+
+  // Show success banner after placing an order (/orders?success=1)
+  useEffect(() => {
+    setJustPlaced(new URLSearchParams(window.location.search).get("success") === "1");
+  }, []);
 
   useEffect(() => {
     if (authLoading) return;
 
     if (!isLoggedIn) {
       router.replace("/login");
-      setLoadingOrders(false);
       return;
     }
 
-    const fetchOrders = async () => {
+    async function fetchOrders() {
       try {
-        const token = localStorage.getItem("token");
-
-        if (!token) {
-          router.replace("/login");
-          return;
-        }
-
         const response = await fetch("/api/orders", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store",
         });
 
         const data = await response.json();
 
         if (response.status === 401) {
+          logout();
           router.replace("/login");
           return;
         }
@@ -65,123 +75,113 @@ export default function OrdersPage() {
         }
 
         setOrders(data.orders || []);
-
-      } catch (error) {
-        setError(
-          error instanceof Error
-            ? error.message
-            : "Something went wrong"
-        );
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Something went wrong");
       } finally {
         setLoadingOrders(false);
       }
-    };
+    }
 
     fetchOrders();
-  }, [authLoading, isLoggedIn, router]);
+  }, [authLoading, isLoggedIn, token, router, logout]);
 
   if (authLoading || loadingOrders) {
     return (
-      <div className="p-10 text-center">
-        Loading your orders...
+      <div className="orders-page">
+        <p className="page-loading">Loading your orders...</p>
       </div>
     );
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8">
+    <div className="orders-page">
+      <h1>My Orders</h1>
 
-      <h1 className="text-3xl font-bold mb-6">
-        My Orders
-      </h1>
-
-      {error && (
-        <p className="text-red-500 mb-4">{error}</p>
+      {justPlaced && (
+        <div className="order-success">
+          <CheckCircle2 size={22} />
+          <div>
+            <strong>Order placed successfully!</strong>
+            <p>Thank you for shopping with us. Your order is being processed.</p>
+          </div>
+        </div>
       )}
 
+      {error && <p className="auth-error">{error}</p>}
+
       {orders.length === 0 && !error ? (
-        <div className="text-center py-16">
-          <h2 className="text-xl font-semibold mb-3">
-            No orders found
-          </h2>
-
-          <p className="text-gray-500 mb-5">
-            You have not placed any orders yet.
-          </p>
-
-          <Link
-            href="/products"
-            className="bg-blue-600 text-white px-6 py-3 rounded-md"
-          >
+        <div className="empty-cart">
+          <h3>No orders found</h3>
+          <p>You have not placed any orders yet.</p>
+          <Link href="/products" className="hero-btn">
             Start Shopping
           </Link>
         </div>
       ) : (
-        <div className="space-y-6">
-
+        <div className="orders-list">
           {orders.map((order) => (
-            <div
-              key={order._id}
-              className="border rounded-lg p-5 shadow-sm"
-            >
-
-              <div className="flex flex-wrap justify-between gap-3 mb-4">
-
+            <div key={order._id} className="order-card">
+              <div className="order-head">
                 <div>
-                  <p className="font-semibold">
-                    Order ID: {order._id}
-                  </p>
-
-                  <p className="text-sm text-gray-500">
-                    {new Date(order.createdAt).toLocaleDateString("en-IN")}
-                  </p>
+                  <strong>Order #{order._id.slice(-8).toUpperCase()}</strong>
+                  <small>
+                    Placed on{" "}
+                    {new Date(order.createdAt).toLocaleDateString("en-IN", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    })}
+                  </small>
                 </div>
 
-                <span className="text-green-600 font-semibold">
+                <span className={`status-badge status-${order.status.toLowerCase()}`}>
                   {order.status}
                 </span>
-
               </div>
 
-              <div className="border-t border-b py-4 space-y-3">
-
+              <div className="order-items">
                 {order.items.map((item, index) => (
-                  <div
-                    key={index}
-                    className="flex justify-between gap-4"
-                  >
-                    <div>
-                      <p className="font-medium">
-                        {item.name}
-                      </p>
+                  <div key={index} className="order-item">
+                    {item.image && <img src={item.image} alt={item.name} />}
 
-                      <p className="text-sm text-gray-500">
-                        Quantity: {item.quantity}
-                      </p>
+                    <div className="order-item-info">
+                      <p>{item.name}</p>
+                      <small>
+                        Qty: {item.quantity} × ₹{item.price.toLocaleString("en-IN")}
+                      </small>
                     </div>
 
-                    <p className="font-medium">
+                    <strong>
                       ₹{(item.price * item.quantity).toLocaleString("en-IN")}
-                    </p>
+                    </strong>
                   </div>
                 ))}
-
               </div>
 
-              <div className="flex justify-between mt-4 font-bold">
-                <span>Total Amount</span>
+              <div className="order-foot">
+                {order.shippingAddress && (
+                  <div className="order-address">
+                    <small>Delivering to ({order.shippingAddress.addressType || "Home"})</small>
+                    <p>
+                      <strong>{order.shippingAddress.fullName}</strong> ·{" "}
+                      {order.shippingAddress.phone}
+                    </p>
+                    <p>
+                      {order.shippingAddress.addressLine}, {order.shippingAddress.city},{" "}
+                      {order.shippingAddress.state} - {order.shippingAddress.pincode}
+                    </p>
+                  </div>
+                )}
 
-                <span>
-                  ₹{order.totalAmount.toLocaleString("en-IN")}
-                </span>
+                <div className="order-total">
+                  <small>{order.paymentMethod || "Cash on Delivery"}</small>
+                  <strong>₹{order.totalAmount.toLocaleString("en-IN")}</strong>
+                </div>
               </div>
-
             </div>
           ))}
-
         </div>
       )}
-
     </div>
   );
 }

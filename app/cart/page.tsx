@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCart } from "@/context/CartContext";
 
 export default function CartPage() {
   const { cart, removeFromCart, updateQuantity, total } = useCart();
+  const router = useRouter();
 
   return (
     <div className="cart-container">
@@ -87,7 +89,7 @@ export default function CartPage() {
 
           <button
             className="checkout-btn"
-            onClick={() => alert("Checkout will be implemented later!")}
+            onClick={() => router.push("/checkout")}
           >
             Place Order
           </button>
