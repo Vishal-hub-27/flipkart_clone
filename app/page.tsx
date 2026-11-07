@@ -2,21 +2,20 @@ import Link from "next/link";
 import ProductCard from "@/components/ProductCard";
 import { connection } from "next/server";
 import { Suspense } from "react";
+import connectDB from "@/app/lib/db";
 import Product from "@/app/models/Product";
 
 async function getProducts() {
   try {
-    const response = await fetch(
-      "/api/products",
-      { cache: "no-store" }
-    );
+    // Read directly from MongoDB (no HTTP call to localhost, works on any host)
+    await connectDB();
 
-    if (!response.ok) {
-      throw new Error("Failed to fetch products");
-    }
+    const products = await Product.find({})
+      .sort({ createdAt: -1 })
+      .lean();
 
-    const data = await response.json();
-    return data.products || [];
+    // Convert ObjectId / Date values to plain JSON for the components
+    return JSON.parse(JSON.stringify(products));
   } catch (error) {
     console.error("Product fetching error:", error);
     return [];
