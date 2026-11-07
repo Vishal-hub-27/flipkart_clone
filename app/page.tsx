@@ -2,6 +2,7 @@ import Link from "next/link";
 import ProductCard from "@/components/ProductCard";
 import { connection } from "next/server";
 import { Suspense } from "react";
+import Product from "@/app/models/Product";
 
 async function getProducts() {
   try {
